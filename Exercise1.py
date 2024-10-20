@@ -25,17 +25,22 @@ class Phone(Field):
         return phone.isdigit() and len(phone) == 10
 
 class Birthday(Field):
-    """Клас для зберігання і валідації дати народження."""
+    """Клас для зберігання і валідації дати народження, зберігає дату як рядок."""
     def __init__(self, value):
         try:
-            self.value = datetime.strptime(value, "%d.%m.%Y")
+            datetime.strptime(value, "%d.%m.%Y")
+            self.value = value
         except ValueError:
             raise ValueError("Invalid date format. Use DD.MM.YYYY")
+
+    def __str__(self):
+        return self.value
+
 
 class Record:
     """Клас для зберігання імені контакту, списку телефонів і дня народження."""
     def __init__(self, name):
-        self.name = Name(name.title())
+        self.name = Name(name)
         self.phones = []
         self.birthday = None
 
@@ -66,7 +71,8 @@ class Record:
         """Обчислює кількість днів до наступного дня народження."""
         if self.birthday:
             today = datetime.today()
-            next_birthday = self.birthday.value.replace(year=today.year)
+            birthday_date = datetime.strptime(self.birthday.value, "%d.%m.%Y")
+            next_birthday = birthday_date.replace(year=today.year)
             if next_birthday < today:
                 next_birthday = next_birthday.replace(year=today.year + 1)
             return (next_birthday - today).days
@@ -74,8 +80,9 @@ class Record:
 
     def __str__(self):
         phones_str = ', '.join(str(phone) for phone in self.phones)
-        birthday_str = self.birthday.value.strftime("%d.%m.%Y") if self.birthday else "N/A"
+        birthday_str = self.birthday.value if self.birthday else "N/A"
         return f"Ім'я: {self.name.value}, Телефони: {phones_str}, День народження: {birthday_str}"
+
 
 class AddressBook(UserDict):
     """Клас для зберігання та управління записами контактів."""
@@ -88,16 +95,24 @@ class AddressBook(UserDict):
         return self.data.get(name, None)
 
     def get_upcoming_birthdays(self, days=7):
-        """Знаходить контакти з днями народження в найближчі 7 днів."""
+        """Знаходить контакти з днями народження в найближчі 7 днів з перенесенням на робочий день."""
         today = datetime.today()
         upcoming_birthdays = []
         for record in self.data.values():
             if record.birthday:
                 days_to_birthday = record.get_days_to_birthday()
                 if days_to_birthday is not None and days_to_birthday <= days:
+                    birthday_date = datetime.strptime(record.birthday.value, "%d.%m.%Y")
+                    next_birthday = birthday_date.replace(year=today.year)
+                    if next_birthday < today:
+                        next_birthday = next_birthday.replace(year=today.year + 1)
+                    if next_birthday.weekday() == 5:
+                        next_birthday += timedelta(days=2)
+                    elif next_birthday.weekday() == 6:
+                        next_birthday += timedelta(days=1)
                     upcoming_birthdays.append({
                         "name": record.name.value,
-                        "birthday": (today + timedelta(days=days_to_birthday)).strftime("%d.%m.%Y")
+                        "birthday": next_birthday.strftime("%d.%m.%Y")
                     })
         return upcoming_birthdays
 
